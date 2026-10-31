@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.tv.TvContentRating
 import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
@@ -49,13 +50,26 @@ class MainActivity : Activity() {
                 runOnUiThread { showMsg("No se pudo conectar con el sintonizador ($inputId)") }
             }
             override fun onVideoAvailable(inputId: String?) {
-                runOnUiThread { msgText.visibility = View.GONE }
+                runOnUiThread {
+                    msgText.visibility = View.GONE
+                    tvView.setStreamVolume(1.0f)
+                }
+            }
+            override fun onContentBlocked(inputId: String?, rating: TvContentRating?) {
+                runOnUiThread { showMsg("Canal bloqueado por control parental ($rating)") }
+            }
+            override fun onTuned(channelUri: android.net.Uri?) {
+                runOnUiThread { tvView.setStreamVolume(1.0f) }
             }
             override fun onVideoUnavailable(inputId: String?, reason: Int) {
-                if (reason != TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING &&
-                    reason != TvInputManager.VIDEO_UNAVAILABLE_REASON_BUFFERING) {
-                    runOnUiThread { showMsg("Sin imagen en este canal (motivo $reason)") }
+                val txt = when (reason) {
+                    TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING -> null
+                    TvInputManager.VIDEO_UNAVAILABLE_REASON_BUFFERING -> null
+                    TvInputManager.VIDEO_UNAVAILABLE_REASON_WEAK_SIGNAL -> "Señal débil o sin señal en este canal"
+                    TvInputManager.VIDEO_UNAVAILABLE_REASON_AUDIO_ONLY -> "Este canal solo tiene audio"
+                    else -> "Sin imagen en este canal (motivo $reason)"
                 }
+                if (txt != null) runOnUiThread { showMsg(txt) }
             }
         })
         val error = loadChannels()
@@ -89,6 +103,7 @@ class MainActivity : Activity() {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
 
         tvView = TvView(this)
+        tvView.setZOrderMediaOverlay(true)
         root.addView(tvView, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
@@ -214,6 +229,8 @@ class MainActivity : Activity() {
         val c = channels[index]
         try {
             tvView.tune(c.inputId, TvContract.buildChannelUri(c.id))
+            tvView.setStreamVolume(1.0f)
+            tvView.setCaptionEnabled(false)
         } catch (e: Exception) {
             showMsg("No se pudo sintonizar este canal:\n${e.message}")
         }
