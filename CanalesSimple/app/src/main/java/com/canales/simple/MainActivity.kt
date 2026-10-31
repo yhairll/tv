@@ -58,9 +58,6 @@ class MainActivity : Activity() {
             override fun onContentBlocked(inputId: String?, rating: TvContentRating?) {
                 runOnUiThread { showMsg("Canal bloqueado por control parental ($rating)") }
             }
-            override fun onTuned(channelUri: android.net.Uri?) {
-                runOnUiThread { tvView.setStreamVolume(1.0f) }
-            }
             override fun onVideoUnavailable(inputId: String?, reason: Int) {
                 val txt = when (reason) {
                     TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING -> null
