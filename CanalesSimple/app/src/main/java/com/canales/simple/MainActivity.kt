@@ -1,10 +1,12 @@
 package com.canales.simple
 
 import android.app.Activity
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.tv.TvContract
+import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
 import android.media.tv.TvView
 import android.os.Bundle
@@ -27,6 +29,9 @@ class MainActivity : Activity() {
     private lateinit var numText: TextView
     private lateinit var nameText: TextView
     private lateinit var msgText: TextView
+    private lateinit var inputText: TextView
+    private val perInput = HashMap<String, Int>()
+    private var inputsInfo = ""
 
     private val channels = mutableListOf<Ch>()
     private var index = 0
@@ -57,6 +62,8 @@ class MainActivity : Activity() {
         if (channels.isEmpty()) {
             showMsg("No se pudieron leer canales válidos de la TV.\n" +
                 "Filas leídas: $rawCount\n" +
+                "Canales por fuente: $perInput\n" +
+                "Sintonizadores del sistema:\n$inputsInfo\n" +
                 (if (sample.isNotEmpty()) "Primera fila: $sample\n" else "") +
                 (error ?: "Si es 0, el sistema no permite ver la lista (permiso READ_TV_LISTINGS)."))
             return
@@ -96,6 +103,12 @@ class MainActivity : Activity() {
             maxLines = 1
         }
 
+        inputText = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.parseColor("#9AA0A6"))
+            maxLines = 1
+        }
+
         box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.START
@@ -109,13 +122,14 @@ class MainActivity : Activity() {
             alpha = 0f
             addView(numText)
             addView(nameText)
+            addView(inputText)
         }
         root.addView(box, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.CENTER_VERTICAL or Gravity.START))
 
         msgText = TextView(this).apply {
-            textSize = 24f
+            textSize = 18f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             visibility = View.GONE
@@ -136,6 +150,7 @@ class MainActivity : Activity() {
         val c = channels[index]
         numText.text = c.number
         nameText.text = c.name
+        inputText.text = c.inputId.take(70)
         handler.removeCallbacks(hideBox)
         box.animate().cancel()
         box.alpha = 1f
@@ -152,6 +167,13 @@ class MainActivity : Activity() {
             TvContract.Channels.COLUMN_INPUT_ID,
             TvContract.Channels.COLUMN_SERVICE_TYPE
         )
+        val tim = getSystemService(Context.TV_INPUT_SERVICE) as TvInputManager
+        val tunerIds: Set<String> = try {
+            tim.tvInputList.filter { it.type == TvInputInfo.TYPE_TUNER }.map { it.id }.toSet()
+        } catch (e: Exception) { emptySet() }
+        inputsInfo = try {
+            tim.tvInputList.joinToString("\n") { "${it.id.take(60)} tipo=${it.type}" }
+        } catch (e: Exception) { "(no se pudo listar)" }
         try {
             contentResolver.query(TvContract.Channels.CONTENT_URI, proj, null, null, null)?.use { c ->
                 while (c.moveToNext()) {
@@ -162,6 +184,8 @@ class MainActivity : Activity() {
                         sample = "id=${c.getLong(0)} num=${c.getString(1)} nombre=${c.getString(2)} input='$inputId' tipo=$service"
                     }
                     if (inputId.isEmpty()) continue
+                    perInput[inputId] = (perInput[inputId] ?: 0) + 1
+                    if (tunerIds.isNotEmpty() && inputId !in tunerIds) continue
                     if (service != null && service != TvContract.Channels.SERVICE_TYPE_AUDIO_VIDEO) continue
                     channels.add(Ch(c.getLong(0), c.getString(1) ?: "", c.getString(2) ?: "", inputId))
                 }
