@@ -1,0 +1,14 @@
+CANALES SIMPLE - TV en vivo minimalista
+
+Que hace: pantalla completa, rectangulo con numero y nombre del canal al cambiar.
+Control: flechas arriba/derecha o CH+ = siguiente; abajo/izquierda o CH- = anterior;
+OK = mostrar el rectangulo. Recuerda el ultimo canal.
+
+Compilar:
+ A) Android Studio: Open > esta carpeta > Build > Build APK(s).
+ B) GitHub: sube esta carpeta a un repositorio; en la pestana Actions corre "Build APK"
+    y descarga el artefacto canales-apk.
+
+Instalar: adb connect IP_TV ; adb install app-debug.apk
+Si sale "No se pudieron leer los canales": el sistema no da el permiso READ_TV_LISTINGS
+a apps normales; avisame y vemos la alternativa.
