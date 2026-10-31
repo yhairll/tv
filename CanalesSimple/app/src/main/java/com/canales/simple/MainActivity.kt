@@ -3,6 +3,8 @@ package com.canales.simple
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.ColorDrawable
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.tv.TvContentRating
@@ -52,6 +54,7 @@ class MainActivity : Activity() {
             override fun onVideoAvailable(inputId: String?) {
                 runOnUiThread {
                     msgText.visibility = View.GONE
+                    inputText.text = "estado: video disponible"
                     tvView.setStreamVolume(1.0f)
                 }
             }
@@ -66,6 +69,7 @@ class MainActivity : Activity() {
                     TvInputManager.VIDEO_UNAVAILABLE_REASON_AUDIO_ONLY -> "Este canal solo tiene audio"
                     else -> "Sin imagen en este canal (motivo $reason)"
                 }
+                runOnUiThread { inputText.text = "estado: sin video (motivo $reason)" }
                 if (txt != null) runOnUiThread { showMsg(txt) }
             }
         })
@@ -97,10 +101,12 @@ class MainActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun buildUi() {
-        val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        window.setFormat(PixelFormat.TRANSLUCENT)
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        val root = FrameLayout(this)
 
         tvView = TvView(this)
-        tvView.setZOrderMediaOverlay(true)
+        tvView.setZOrderOnTop(false)
         root.addView(tvView, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
