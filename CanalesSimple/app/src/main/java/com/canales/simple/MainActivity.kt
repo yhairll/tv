@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.tv.TvContract
+import android.media.tv.TvInputManager
 import android.media.tv.TvView
 import android.os.Bundle
 import android.os.Handler
@@ -29,6 +30,8 @@ class MainActivity : Activity() {
 
     private val channels = mutableListOf<Ch>()
     private var index = 0
+    private var rawCount = 0
+    private var sample = ""
     private val handler = Handler(Looper.getMainLooper())
     private val hideBox = Runnable { box.animate().alpha(0f).setDuration(350).start() }
 
@@ -36,11 +39,26 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
+        tvView.setCallback(object : TvView.TvInputCallback() {
+            override fun onConnectionFailed(inputId: String?) {
+                runOnUiThread { showMsg("No se pudo conectar con el sintonizador ($inputId)") }
+            }
+            override fun onVideoAvailable(inputId: String?) {
+                runOnUiThread { msgText.visibility = View.GONE }
+            }
+            override fun onVideoUnavailable(inputId: String?, reason: Int) {
+                if (reason != TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING &&
+                    reason != TvInputManager.VIDEO_UNAVAILABLE_REASON_BUFFERING) {
+                    runOnUiThread { showMsg("Sin imagen en este canal (motivo $reason)") }
+                }
+            }
+        })
         val error = loadChannels()
         if (channels.isEmpty()) {
-            msgText.visibility = View.VISIBLE
-            msgText.text = "No se pudieron leer los canales de la TV.\n" +
-                (error ?: "El sistema no permite a esta app ver la lista (permiso READ_TV_LISTINGS).")
+            showMsg("No se pudieron leer canales válidos de la TV.\n" +
+                "Filas leídas: $rawCount\n" +
+                (if (sample.isNotEmpty()) "Primera fila: $sample\n" else "") +
+                (error ?: "Si es 0, el sistema no permite ver la lista (permiso READ_TV_LISTINGS)."))
             return
         }
         index = getPreferences(MODE_PRIVATE).getInt("last", 0).coerceIn(0, channels.size - 1)
@@ -109,6 +127,11 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
+    private fun showMsg(text: String) {
+        msgText.text = text
+        msgText.visibility = View.VISIBLE
+    }
+
     private fun showBox() {
         val c = channels[index]
         numText.text = c.number
@@ -132,9 +155,15 @@ class MainActivity : Activity() {
         try {
             contentResolver.query(TvContract.Channels.CONTENT_URI, proj, null, null, null)?.use { c ->
                 while (c.moveToNext()) {
+                    rawCount++
                     val service = c.getString(4)
+                    val inputId = c.getString(3) ?: ""
+                    if (rawCount == 1) {
+                        sample = "id=${c.getLong(0)} num=${c.getString(1)} nombre=${c.getString(2)} input='$inputId' tipo=$service"
+                    }
+                    if (inputId.isEmpty()) continue
                     if (service != null && service != TvContract.Channels.SERVICE_TYPE_AUDIO_VIDEO) continue
-                    channels.add(Ch(c.getLong(0), c.getString(1) ?: "", c.getString(2) ?: "", c.getString(3) ?: ""))
+                    channels.add(Ch(c.getLong(0), c.getString(1) ?: "", c.getString(2) ?: "", inputId))
                 }
             }
         } catch (e: Exception) {
@@ -159,7 +188,11 @@ class MainActivity : Activity() {
         if (channels.isEmpty()) return
         index = ((i % channels.size) + channels.size) % channels.size
         val c = channels[index]
-        tvView.tune(c.inputId, TvContract.buildChannelUri(c.id))
+        try {
+            tvView.tune(c.inputId, TvContract.buildChannelUri(c.id))
+        } catch (e: Exception) {
+            showMsg("No se pudo sintonizar este canal:\n${e.message}")
+        }
         showBox()
     }
 
